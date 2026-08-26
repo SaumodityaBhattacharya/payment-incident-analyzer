@@ -1,4 +1,4 @@
-package com.saumoditya.package_incident_analyzer;
+package com.saumoditya.payment_incident_analyzer;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
