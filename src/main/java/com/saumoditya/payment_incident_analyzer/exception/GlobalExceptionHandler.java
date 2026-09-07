@@ -12,6 +12,21 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(AIServiceException.class)
+    public ResponseEntity<ApiErrorResponse> handleAiServiceException(
+            AIServiceException exception
+    ) {
+        ApiErrorResponse response = new ApiErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_GATEWAY.value(),
+                "AI service unavailable",
+                "Incident analysis could not be completed"
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(response);
+    }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ValidationErrorResponse> handleValidationErrors(
             MethodArgumentNotValidException exception

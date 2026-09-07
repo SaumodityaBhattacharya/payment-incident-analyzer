@@ -1,5 +1,6 @@
 package com.saumoditya.payment_incident_analyzer.service;
 
+import com.saumoditya.payment_incident_analyzer.exception.AIServiceException;
 import com.saumoditya.payment_incident_analyzer.dto.IncidentAnalysisRequest;
 import com.saumoditya.payment_incident_analyzer.dto.IncidentAnalysisResponse;
 import com.saumoditya.payment_incident_analyzer.dto.IncidentCategory;
@@ -14,11 +15,43 @@ import com.saumoditya.payment_incident_analyzer.exception.AIServiceException;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hibernate.validator.internal.util.Contracts.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ClaudeIncidentAnalyzerTest {
+    @Test
+    void shouldWrapModelFailureInAiServiceException() {
+        ChatModel failingChatModel = prompt -> {
+            throw new RuntimeException("Provider unavailable");
+        };
 
+        ClaudeIncidentAnalyzer analyzer =
+                new ClaudeIncidentAnalyzer(
+                        ChatClient.builder(failingChatModel)
+                );
+
+        IncidentAnalysisRequest request =
+                new IncidentAnalysisRequest(
+                        "Payments are failing because the AI provider is unavailable"
+                );
+
+        AIServiceException exception = assertThrows(
+                AIServiceException.class,
+                () -> analyzer.analyze(request)
+        );
+
+        assertEquals(
+                "Unable to analyze the incident using the AI service",
+                exception.getMessage()
+        );
+
+        assertNotNull(exception.getCause());
+
+        assertEquals(
+                "Provider unavailable",
+                exception.getCause().getMessage()
+        );
+    }
     @Test
     void shouldConvertModelJsonIntoStructuredResponse() {
         String modelJson = """
