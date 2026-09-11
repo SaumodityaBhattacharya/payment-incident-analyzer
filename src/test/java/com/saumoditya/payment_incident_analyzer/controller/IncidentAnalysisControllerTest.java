@@ -1,5 +1,6 @@
 package com.saumoditya.payment_incident_analyzer.controller;
 
+import com.saumoditya.payment_incident_analyzer.dto.IncidentAnalysisRequest;
 import com.saumoditya.payment_incident_analyzer.dto.IncidentAnalysisResponse;
 import com.saumoditya.payment_incident_analyzer.dto.IncidentCategory;
 import com.saumoditya.payment_incident_analyzer.dto.IncidentSeverity;
@@ -10,7 +11,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
+import com.saumoditya.payment_incident_analyzer.exception.AIServiceException;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -28,6 +29,26 @@ class IncidentAnalysisControllerTest {
 
     @MockitoBean
     private IncidentAnalyzer incidentAnalyzer;
+    @Test
+    void shouldReturnBadGatewayWhenAiServiceFails() throws Exception {
+        when(incidentAnalyzer.analyze(any(IncidentAnalysisRequest.class)))
+                .thenThrow(new AIServiceException("Provider unavailable"));
+
+        mockMvc.perform(post("/api/incidents/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "incident": "The downstream payment service is unavailable"
+                            }
+                            """))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.status").value(502))
+                .andExpect(jsonPath("$.error")
+                        .value("AI service unavailable"))
+                .andExpect(jsonPath("$.message")
+                        .value("Incident analysis could not be completed"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
     @Test
     void shouldReturnBadRequestForInvalidIncident() throws Exception {
         mockMvc.perform(
