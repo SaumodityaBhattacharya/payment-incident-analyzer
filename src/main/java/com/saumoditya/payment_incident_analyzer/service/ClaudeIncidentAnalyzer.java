@@ -2,10 +2,11 @@ package com.saumoditya.payment_incident_analyzer.service;
 
 import com.saumoditya.payment_incident_analyzer.dto.IncidentAnalysisRequest;
 import com.saumoditya.payment_incident_analyzer.dto.IncidentAnalysisResponse;
+import com.saumoditya.payment_incident_analyzer.exception.AIServiceException;
+import jakarta.validation.Validator;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import com.saumoditya.payment_incident_analyzer.exception.AIServiceException;
 
 @Service
 @ConditionalOnProperty(
@@ -13,42 +14,6 @@ import com.saumoditya.payment_incident_analyzer.exception.AIServiceException;
         havingValue = "claude"
 )
 public class ClaudeIncidentAnalyzer implements IncidentAnalyzer {
-    @Override
-    public IncidentAnalysisResponse analyze(IncidentAnalysisRequest request) {
-        try {
-            IncidentAnalysisResponse response = chatClient
-                    .prompt()
-                    .user(user -> user
-                            .text("""
-                                Analyze this payment incident:
-
-                                <incident>
-                                {incident}
-                                </incident>
-                                """)
-                            .param("incident", request.incident())
-                    )
-                    .call()
-                    .entity(IncidentAnalysisResponse.class);
-
-            if (response == null) {
-                throw new AIServiceException(
-                        "AI service returned an empty incident analysis"
-                );
-            }
-
-            return response;
-
-        } catch (AIServiceException exception) {
-            throw exception;
-
-        } catch (RuntimeException exception) {
-            throw new AIServiceException(
-                    "Unable to analyze the incident using the AI service",
-                    exception
-            );
-        }
-    }
 
     private static final String SYSTEM_PROMPT = """
             You are a payment-operations incident analyst.
@@ -67,30 +32,59 @@ public class ClaudeIncidentAnalyzer implements IncidentAnalyzer {
             """;
 
     private final ChatClient chatClient;
+    private final Validator validator;
 
-    public ClaudeIncidentAnalyzer(ChatClient.Builder chatClientBuilder) {
+    public ClaudeIncidentAnalyzer(
+            ChatClient.Builder chatClientBuilder,
+            Validator validator
+    ) {
         this.chatClient = chatClientBuilder
                 .defaultSystem(SYSTEM_PROMPT)
                 .build();
+
+        this.validator = validator;
     }
 
-//    @Override
-//    public IncidentAnalysisResponse analyze(
-//            IncidentAnalysisRequest request
-//    ) {
-//        return chatClient
-//                .prompt()
-//                .user(user -> user
-//                        .text("""
-//                                Analyze this payment incident:
-//
-//                                <incident>
-//                                {incident}
-//                                </incident>
-//                                """)
-//                        .param("incident", request.incident())
-//                )
-//                .call()
-//                .entity(IncidentAnalysisResponse.class);
-//    }
+    @Override
+    public IncidentAnalysisResponse analyze(IncidentAnalysisRequest request) {
+        try {
+            IncidentAnalysisResponse response = chatClient
+                    .prompt()
+                    .user(user -> user
+                            .text("""
+                                    Analyze this payment incident:
+
+                                    <incident>
+                                    {incident}
+                                    </incident>
+                                    """)
+                            .param("incident", request.incident())
+                    )
+                    .call()
+                    .entity(IncidentAnalysisResponse.class);
+
+            if (response == null) {
+                throw new AIServiceException(
+                        "AI service returned an empty incident analysis"
+                );
+            }
+
+            if (!validator.validate(response).isEmpty()) {
+                throw new AIServiceException(
+                        "AI service returned an invalid incident analysis"
+                );
+            }
+
+            return response;
+
+        } catch (AIServiceException exception) {
+            throw exception;
+
+        } catch (RuntimeException exception) {
+            throw new AIServiceException(
+                    "Unable to analyze the incident using the AI service",
+                    exception
+            );
+        }
+    }
 }
